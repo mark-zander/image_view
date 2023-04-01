@@ -1,11 +1,17 @@
+// lib.rs
 use winit::{
     event::*,
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
-
-// lib.rs
 use winit::window::Window;
+use image::GenericImageView;
+use image::io::Reader as ImageReader;
+// use anyhow::*;
+
+pub mod cli;
+mod pipeline;
+mod texture;
 
 struct State {
     surface: wgpu::Surface,
@@ -13,13 +19,21 @@ struct State {
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
     size: winit::dpi::PhysicalSize<u32>,
+    num_indices: u32,
     window: Window,
+    image_text: texture::Texture,
+    render_pipeline: wgpu::RenderPipeline,
 }
 
 impl State {
     // Creating some of the wgpu types requires async code
-    async fn new(window: Window) -> Self {
+    async fn new(window: Window, args: cli::Args) -> Self {
         let size = window.inner_size();
+
+        // This is the size of the mesh. 6 is the smallest possible mesh.
+        // Should this be rowsize & nrows? Based on subsampling image.
+        // Needs a uniform for rowsize. Compute nindexes.
+        let num_indices = 6;
 
         // The instance is a handle to our GPU
         // Backends::all => Vulkan + Metal + DX12 + Browser WebGPU
@@ -92,6 +106,16 @@ impl State {
         };
         surface.configure(&device, &config);
 
+        let image_file = ImageReader::open(args.image_name).expect(
+            "Error: Failed to open file");
+        let image = image_file.decode().expect(
+            "Error: Failed to read image");
+
+        let image_text = texture::Texture::from_image(
+            &device, &queue, &image, "image data").unwrap();
+
+        let render_pipeline = pipeline::make(&device, &config, &image_text);
+
         Self {
             window,
             surface,
@@ -99,6 +123,9 @@ impl State {
             queue,
             config,
             size,
+            num_indices,
+            image_text,
+            render_pipeline,
         }
 
     }
@@ -128,27 +155,38 @@ impl State {
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
         let output = self.surface.get_current_texture()?;
         let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("Render Encoder"),
-        });
+        let mut encoder = self.device.create_command_encoder(
+            &wgpu::CommandEncoderDescriptor {label: Some("Render Encoder"),});
         {
-            let _render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.1,
-                            g: 0.2,
-                            b: 0.3,
-                            a: 1.0,
-                        }),
-                        store: true,
-                    },
-                })],
+                color_attachments: &[
+                    // This is what @location(0) in the fragment shader targets
+                    Some(wgpu::RenderPassColorAttachment {
+                        view: &view,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(
+                                wgpu::Color {
+                                    r: 0.1,
+                                    g: 0.2,
+                                    b: 0.3,
+                                    a: 1.0,
+                                }
+                            ),
+                            store: true,
+                        }
+                    })
+                ],
                 depth_stencil_attachment: None,
             });
+        
+            // NEW!
+            render_pass.set_pipeline(&self.render_pipeline); // 2.
+            render_pass.set_bind_group(0, &self.image_text.bind_group, &[]); // NEW!
+            // render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
+ 
+            render_pass.draw(0..6, 0..1); // 3.
         }
     
         // submit will accept anything that implements IntoIter
@@ -160,11 +198,11 @@ impl State {
     
 }
 
-pub async fn run() {
+pub async fn run(cli: cli::Args) {
     env_logger::init();
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new().build(&event_loop).unwrap();
-    let mut state = State::new(window).await;
+    let mut state = State::new(window, cli).await;
 
     event_loop.run(move |event, _, control_flow| {
         match event {
