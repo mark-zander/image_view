@@ -5,13 +5,13 @@ use wgpu::util::DeviceExt;
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct MeshDescriptor {
-    rowsize: u32,   // number of vertexes in a row
-    nrows: u32,     // number of rows
-    xoffset: f32,   // location of first x value
-    yoffset: f32,   // location of first y value
-    xscale: f32,    // x scale factor
-    yscale: f32,    // y scale factor
-    channel: u32,   // red, green or blue color channel
+    quads_in_row: u32,  // number of vertexes in a row
+    rows_of_quads: u32, // number of rows
+    xoffset: f32,       // location of first x value
+    yoffset: f32,       // location of first y value
+    xscale: f32,        // x scale factor
+    yscale: f32,        // y scale factor
+    channel: u32,       // red, green or blue color channel
     nverts: u32,
 }
 
@@ -27,8 +27,8 @@ impl MeshDescriptor {
         nverts: u32,
     ) -> Self {
         Self {
-            rowsize,
-            nrows,
+            quads_in_row: rowsize - 1,
+            rows_of_quads: nrows - 1,
             xoffset,
             yoffset,
             xscale,
@@ -37,22 +37,31 @@ impl MeshDescriptor {
             nverts,
         }
     }
-    pub fn default() -> Self {
-        let rowsize = 3;
-        let nrows = 3;
-        let nverts = (rowsize - 1) * (nrows - 1) * 6;
+    // Sets up so that the scale goes from -1 to +1 for both
+    // x vertexes and y vertexes
+    pub fn default(
+        rowsize: u32,   // number of vertexes in a row
+        nrows: u32,     // number of rows of vertexes
+    ) -> Self {
+        let quads_in_row = rowsize - 1;
+        let rows_of_quads = nrows - 1;
+        let xscale = 2.0 / quads_in_row as f32;
+        let yscale = 2.0 / rows_of_quads as f32;
+        let nverts = quads_in_row * rows_of_quads * 6;
         Self {
-            rowsize,
-            nrows,
+            quads_in_row,
+            rows_of_quads,
             xoffset: -1.0,
             yoffset: -1.0,
-            xscale: 1.0,
-            yscale: 1.0,
+            xscale,
+            yscale,
             channel: 0,
             nverts,
         }
     }
-    pub fn nverts(self: &Self) -> u32 { self.nverts }
+    pub fn nverts(self: &Self) -> u32 {
+        self.quads_in_row * self.rows_of_quads * 6
+    }
     pub fn mesh_buffer(self: Self, device: &wgpu::Device) -> wgpu::Buffer {
         // let mesh_buffer = 
         device.create_buffer_init(

@@ -53,14 +53,14 @@ fn vs_main(
 }
 
 struct MeshDescriptor {
-    rowsize: u32,   // number of vertexes in a row
-    nrows: u32,     // number of rows
-    xoffset: f32,   // location of first x value
-    yoffset: f32,   // location of first y value
-    xscale: f32,    // x scale factor
-    yscale: f32,    // y scale factor
-    channel: u32,   // red, green or blue color channel
-    unused: u32,
+    quads_in_row: u32,  // number of vertexes in a row
+    rows_of_quads: u32, // number of rows
+    xoffset: f32,       // location of first x value
+    yoffset: f32,       // location of first y value
+    xscale: f32,        // x scale factor
+    yscale: f32,        // y scale factor
+    channel: u32,       // red, green or blue color channel
+    nverts: u32,
 };
 
 @group(1) @binding(0)
@@ -93,8 +93,8 @@ fn vs_main1(
     var yp: f32;
     let iquad = index / 6u;
     let quadvert = index % 6u;
-    let ix = iquad % (mesh_desc.rowsize - 1u);
-    let iy = iquad / (mesh_desc.rowsize - 1u);
+    let ix = iquad % mesh_desc.quads_in_row;
+    let iy = iquad / mesh_desc.rows_of_quads;
     switch quadvert {
         case 0u { xp = 0.0; yp = 0.0; }
         case 1u { xp = 1.0; yp = 1.0; }
