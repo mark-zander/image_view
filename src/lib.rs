@@ -12,6 +12,7 @@ use image::io::Reader as ImageReader;
 pub mod cli;
 mod pipeline;
 mod texture;
+mod uniform_buffer;
 
 struct State {
     surface: wgpu::Surface,
@@ -19,9 +20,11 @@ struct State {
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
     size: winit::dpi::PhysicalSize<u32>,
-    num_indices: u32,
+    // num_indices: u32,
     window: Window,
     image_text: texture::Texture,
+    mesh_uniform: uniform_buffer::UniformBinding,
+    mesh_desc: uniform_buffer::MeshDescriptor,
     render_pipeline: wgpu::RenderPipeline,
 }
 
@@ -33,7 +36,7 @@ impl State {
         // This is the size of the mesh. 6 is the smallest possible mesh.
         // Should this be rowsize & nrows? Based on subsampling image.
         // Needs a uniform for rowsize. Compute nindexes.
-        let num_indices = 6;
+        // let num_indices = 6;
 
         // The instance is a handle to our GPU
         // Backends::all => Vulkan + Metal + DX12 + Browser WebGPU
@@ -58,22 +61,8 @@ impl State {
 
         let (device, queue) = adapter.request_device(
             &wgpu::DeviceDescriptor {
-                features: wgpu::Features::empty(),
-                // WebGL doesn't support all of wgpu's features, so if
-                // we're building for the web we'll have to disable some.
-                limits: if cfg!(target_arch = "wasm32") {
-                    wgpu::Limits::downlevel_webgl2_defaults()
-                } else {
-                    wgpu::Limits::default()
-                },
-                label: None,
-            },
-            None, // Trace path
-        ).await.unwrap();
-
-        let (device, queue) = adapter.request_device(
-            &wgpu::DeviceDescriptor {
-                features: wgpu::Features::empty(),
+                // features: wgpu::Features::empty(),
+                features: wgpu::Features::POLYGON_MODE_LINE,
                 // WebGL doesn't support all of wgpu's features, so if
                 // we're building for the web we'll have to disable some.
                 limits: if cfg!(target_arch = "wasm32") {
@@ -114,7 +103,16 @@ impl State {
         let image_text = texture::Texture::from_image(
             &device, &queue, &image, "image data").unwrap();
 
-        let render_pipeline = pipeline::make(&device, &config, &image_text);
+        let mesh_desc = uniform_buffer::MeshDescriptor::default();
+
+        let mesh_uniform = uniform_buffer::UniformBinding::new(
+            mesh_desc.mesh_buffer(&device),
+            &device
+        );
+
+        let render_pipeline = pipeline::make(&device, &config,
+            &image_text, &mesh_uniform);
+            // &[&image_text.bind_group_layout, &mesh_uniform.bind_group_layout]);
 
         Self {
             window,
@@ -123,8 +121,10 @@ impl State {
             queue,
             config,
             size,
-            num_indices,
+            // num_indices,
             image_text,
+            mesh_desc,
+            mesh_uniform,
             render_pipeline,
         }
 
@@ -184,9 +184,11 @@ impl State {
             // NEW!
             render_pass.set_pipeline(&self.render_pipeline); // 2.
             render_pass.set_bind_group(0, &self.image_text.bind_group, &[]); // NEW!
+            render_pass.set_bind_group(1, &self.mesh_uniform.bind_group, &[]);
             // render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
  
-            render_pass.draw(0..6, 0..1); // 3.
+            render_pass.draw(0..self.mesh_desc.nverts(), 0..1); // 3.
+            // render_pass.draw(0..726, 0..1); // 3.
         }
     
         // submit will accept anything that implements IntoIter

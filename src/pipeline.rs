@@ -1,11 +1,13 @@
 use wgpu;
 
-use crate::texture;
+use crate::{texture, uniform_buffer};
 
 pub fn make(
     device: &wgpu::Device,
     config: &wgpu::SurfaceConfiguration,
-    image_text: &texture::Texture
+    image_text: &texture::Texture,
+    mesh_uniform: &uniform_buffer::UniformBinding,
+    // bind_group_layouts: &[&wgpu::BindGroupLayout]
 ) -> wgpu::RenderPipeline {
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("Shader"),
@@ -14,7 +16,11 @@ pub fn make(
     let render_pipeline_layout =
         device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Render Pipeline Layout"),
-            bind_group_layouts: &[&image_text.bind_group_layout], // NEW!
+            bind_group_layouts: &[
+                &image_text.bind_group_layout,
+                &mesh_uniform.bind_group_layout // NEW!
+            ],
+            // bind_group_layouts: bind_group_layouts, // NEW!
             push_constant_ranges: &[],
         });
     let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -22,12 +28,12 @@ pub fn make(
         layout: Some(&render_pipeline_layout),
         vertex: wgpu::VertexState {
             module: &shader,
-            entry_point: "vs_main", // 1.
+            entry_point: "vs_main1", // 1.
             buffers: &[], // 2.
         },
         fragment: Some(wgpu::FragmentState { // 3.
             module: &shader,
-            entry_point: "fs_main",
+            entry_point: "fs_wire",
             targets: &[Some(wgpu::ColorTargetState { // 4.
                 format: config.format,
                 blend: Some(wgpu::BlendState::REPLACE),
@@ -40,7 +46,8 @@ pub fn make(
             front_face: wgpu::FrontFace::Ccw, // 2.
             cull_mode: Some(wgpu::Face::Back),
             // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
-            polygon_mode: wgpu::PolygonMode::Fill,
+            // polygon_mode: wgpu::PolygonMode::Fill,
+            polygon_mode: wgpu::PolygonMode::Line,
             // Requires Features::DEPTH_CLIP_CONTROL
             unclipped_depth: false,
             // Requires Features::CONSERVATIVE_RASTERIZATION
