@@ -68,6 +68,8 @@ var<uniform> mesh_desc: MeshDescriptor;
 
 struct VertexOutput1 {
     @builtin(position) clip_position: vec4<f32>,
+    @location(0) wire_tex: vec2<f32>,
+    @location(1) image_tex: vec2<f32>,
 };
 
 // @group(1) @binding(1)
@@ -104,9 +106,27 @@ fn vs_main1(
         case 5u { xp = 1.0; yp = 1.0; }
         default { xp = 0.0; yp = 0.0; }
     }
-    out.clip_position.x = (f32(ix) + xp) * mesh_desc.xscale + mesh_desc.xoffset;
-    out.clip_position.y = (f32(iy) + yp) * mesh_desc.yscale + mesh_desc.yoffset;
-    out.clip_position.z = 0.0;
+
+    let x = f32(ix) + xp;
+    let y = f32(iy) + yp;
+    let coords = vec2<f32>(x, y);
+    let icoords = vec2<u32>(u32(x), u32(y));
+
+    out.wire_tex = coords;
+
+    out.image_tex.x = coords.x / f32(mesh_desc.quads_in_row);
+    out.image_tex.y = 1.0 - coords.y / f32(mesh_desc.rows_of_quads);
+
+    out.clip_position.x = coords.x * mesh_desc.xscale + mesh_desc.xoffset;
+    out.clip_position.y = coords.y * mesh_desc.yscale + mesh_desc.yoffset;
+    // out.clip_position.z = 0.0;
+    let rgba = textureLoad(image_tex, icoords, 0);
+    let rgb = vec3<f32>(rgba.r, rgba.g, rgba.b);
+    // out.clip_position.z = sqrt(dot(rgb, rgb));
+    // out.clip_position.z = (rgba.r + rgba.g + rgba.b) / 3.0;
+    // out.clip_position.z = (rgba.r + rgba.g + rgba.b) / 3.0;
+    out.clip_position.z = sqrt(
+        rgba.r * rgba.r + rgba.g * rgba.g + rgba.b * rgba.b) / 3.0;
     out.clip_position.w = 1.0;
 
     // out.clip_position.x = (f32(ix) + pos[quadvert].x) * mesh_desc.xscale;
@@ -124,8 +144,8 @@ var image_tex: texture_2d<f32>;
 var image_sampler: sampler;
 
 @fragment
-fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    return textureSample(image_tex, image_sampler, in.texcoord);
+fn fs_main(in: VertexOutput1) -> @location(0) vec4<f32> {
+    return textureSample(image_tex, image_sampler, in.image_tex);
 }
 
 // Hardware wire frame

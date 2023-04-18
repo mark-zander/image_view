@@ -33,7 +33,7 @@ pub fn make(
         },
         fragment: Some(wgpu::FragmentState { // 3.
             module: &shader,
-            entry_point: "fs_wire",
+            entry_point: "fs_main",
             targets: &[Some(wgpu::ColorTargetState { // 4.
                 format: config.format,
                 blend: Some(wgpu::BlendState::REPLACE),
@@ -46,8 +46,8 @@ pub fn make(
             front_face: wgpu::FrontFace::Ccw, // 2.
             cull_mode: Some(wgpu::Face::Back),
             // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
-            // polygon_mode: wgpu::PolygonMode::Fill,
-            polygon_mode: wgpu::PolygonMode::Line,
+            polygon_mode: wgpu::PolygonMode::Fill,
+            // polygon_mode: wgpu::PolygonMode::Line,
             // Requires Features::DEPTH_CLIP_CONTROL
             unclipped_depth: false,
             // Requires Features::CONSERVATIVE_RASTERIZATION
