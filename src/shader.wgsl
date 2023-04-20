@@ -106,6 +106,8 @@ fn vs_main1(
         case 5u { xp = 1.0; yp = 1.0; }
         default { xp = 0.0; yp = 0.0; }
     }
+    // let xp = pos[quadvert].x;
+    // let yp = pos[quadvert].y;
 
     let x = f32(ix) + xp;
     let y = f32(iy) + yp;
@@ -144,7 +146,7 @@ var image_tex: texture_2d<f32>;
 var image_sampler: sampler;
 
 @fragment
-fn fs_main(in: VertexOutput1) -> @location(0) vec4<f32> {
+fn fs_color(in: VertexOutput1) -> @location(0) vec4<f32> {
     return textureSample(image_tex, image_sampler, in.image_tex);
 }
 

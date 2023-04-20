@@ -1,10 +1,11 @@
 use wgpu;
 
-use crate::{texture, uniform_buffer};
+use crate::{texture, uniform_buffer, cli};
 
 pub fn make(
     device: &wgpu::Device,
     config: &wgpu::SurfaceConfiguration,
+    args: &cli::Args, 
     image_text: &texture::Texture,
     mesh_uniform: &uniform_buffer::UniformBinding,
     // bind_group_layouts: &[&wgpu::BindGroupLayout]
@@ -33,7 +34,7 @@ pub fn make(
         },
         fragment: Some(wgpu::FragmentState { // 3.
             module: &shader,
-            entry_point: "fs_main",
+            entry_point: &args.frag_entry,
             targets: &[Some(wgpu::ColorTargetState { // 4.
                 format: config.format,
                 blend: Some(wgpu::BlendState::REPLACE),
@@ -46,7 +47,8 @@ pub fn make(
             front_face: wgpu::FrontFace::Ccw, // 2.
             cull_mode: Some(wgpu::Face::Back),
             // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
-            polygon_mode: wgpu::PolygonMode::Fill,
+            polygon_mode: args.polygon_mode,
+            // polygon_mode: wgpu::PolygonMode::Fill,
             // polygon_mode: wgpu::PolygonMode::Line,
             // Requires Features::DEPTH_CLIP_CONTROL
             unclipped_depth: false,

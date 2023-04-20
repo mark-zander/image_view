@@ -6,14 +6,16 @@ use std::path::PathBuf;
 #[derive(Parser,Default,Debug)]
 #[clap(author="Author Name", version, about)]
 /// View image files
-struct Cli {
+pub struct Cli {
     /// File name of image for viewing
-    image_name: PathBuf,
+    pub image_name: PathBuf,
     #[arg(value_enum, short, long, default_value_t=DisplayMode::Color)]
     /// Controls the way each polygon is rasterized
     display_mode: DisplayMode,
 
 }
+
+pub fn parse() -> Cli { Cli::parse() }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug, Default)]
 pub enum DisplayMode {
@@ -38,22 +40,14 @@ impl DisplayMode {
 }
 
 
-
 pub struct Args {
-    pub image_name: PathBuf,
-    // pub image: 
     pub polygon_mode: wgpu::PolygonMode,
     pub frag_entry: String,
 }
 
 impl Args {
-    pub fn new() -> Self {
-        let cli = Cli::parse();
-        println!("{:?}", cli);
-        // let image = image::open(image_name).expect("Error: File not found!");
+    pub fn new(cli: &Cli) -> Self {
         Self {
-            image_name: cli.image_name,
-            // image,
             polygon_mode: cli.display_mode.polygon_mode(),
             frag_entry: String::from(cli.display_mode.frag_entry()),
         }

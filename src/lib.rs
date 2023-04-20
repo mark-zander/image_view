@@ -7,6 +7,7 @@ use winit::{
 use winit::window::Window;
 use image::GenericImageView;
 use image::io::Reader as ImageReader;
+use std::path::PathBuf;
 // use anyhow::*;
 
 pub mod cli;
@@ -30,7 +31,7 @@ struct State {
 
 impl State {
     // Creating some of the wgpu types requires async code
-    async fn new(window: Window, args: cli::Args) -> Self {
+    async fn new(window: Window, cli: &cli::Cli, args: cli::Args) -> Self {
         let size = window.inner_size();
 
         // This is the size of the mesh. 6 is the smallest possible mesh.
@@ -95,7 +96,7 @@ impl State {
         };
         surface.configure(&device, &config);
 
-        let image_file = ImageReader::open(args.image_name).expect(
+        let image_file = ImageReader::open(&cli.image_name).expect(
             "Error: Failed to open file");
         let image = image_file.decode().expect(
             "Error: Failed to read image");
@@ -110,7 +111,7 @@ impl State {
             &device
         );
 
-        let render_pipeline = pipeline::make(&device, &config,
+        let render_pipeline = pipeline::make(&device, &config, &args,
             &image_text, &mesh_uniform);
             // &[&image_text.bind_group_layout, &mesh_uniform.bind_group_layout]);
 
@@ -200,11 +201,11 @@ impl State {
     
 }
 
-pub async fn run(cli: cli::Args) {
+pub async fn run(cli: &cli::Cli, args: cli::Args) {
     env_logger::init();
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new().build(&event_loop).unwrap();
-    let mut state = State::new(window, cli).await;
+    let mut state = State::new(window, cli, args).await;
 
     event_loop.run(move |event, _, control_flow| {
         match event {
