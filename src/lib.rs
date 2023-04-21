@@ -5,9 +5,9 @@ use winit::{
     window::WindowBuilder,
 };
 use winit::window::Window;
-use image::GenericImageView;
 use image::io::Reader as ImageReader;
-use std::path::PathBuf;
+// use image::GenericImageView;
+// use std::path::PathBuf;
 // use anyhow::*;
 
 pub mod cli;
@@ -21,7 +21,6 @@ struct State {
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
     size: winit::dpi::PhysicalSize<u32>,
-    // num_indices: u32,
     window: Window,
     image_text: texture::Texture,
     mesh_uniform: uniform_buffer::UniformBinding,
@@ -31,7 +30,10 @@ struct State {
 
 impl State {
     // Creating some of the wgpu types requires async code
-    async fn new(window: Window, cli: &cli::Cli, args: cli::Args) -> Self {
+    async fn new(
+        window: Window,
+        args: &cli::Cli,
+    ) -> Self {
         let size = window.inner_size();
 
         // This is the size of the mesh. 6 is the smallest possible mesh.
@@ -96,7 +98,7 @@ impl State {
         };
         surface.configure(&device, &config);
 
-        let image_file = ImageReader::open(&cli.image_name).expect(
+        let image_file = ImageReader::open(&args.image_name()).expect(
             "Error: Failed to open file");
         let image = image_file.decode().expect(
             "Error: Failed to read image");
@@ -122,7 +124,6 @@ impl State {
             queue,
             config,
             size,
-            // num_indices,
             image_text,
             mesh_desc,
             mesh_uniform,
@@ -201,11 +202,15 @@ impl State {
     
 }
 
-pub async fn run(cli: &cli::Cli, args: cli::Args) {
+pub async fn run(
+    // cli: &cli::Cli,
+    args: &cli::Cli
+) {
     env_logger::init();
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new().build(&event_loop).unwrap();
-    let mut state = State::new(window, cli, args).await;
+    // let mut state = State::new(window, cli, args).await;
+    let mut state = State::new(window, args).await;
 
     event_loop.run(move |event, _, control_flow| {
         match event {

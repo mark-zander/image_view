@@ -1,10 +1,9 @@
 use image_view::run;
-use image_view::cli;
+use image_view::cli::Cli;
 
 fn main() {
-    let cli = cli::parse();
-    let args = cli::Args::new(&cli);
-    // println!("{:?}", cli);
+    let args = Cli::new();
+    println!("{:?}", args);
 
-    pollster::block_on(run(&cli, args));
+    pollster::block_on(run(&args));
 }
