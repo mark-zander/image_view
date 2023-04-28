@@ -6,6 +6,8 @@ use winit::{
 };
 use winit::window::Window;
 use image::io::Reader as ImageReader;
+use wgpu::util::DeviceExt;
+
 // use image::GenericImageView;
 // use std::path::PathBuf;
 // use anyhow::*;
@@ -14,6 +16,7 @@ pub mod cli;
 mod pipeline;
 mod texture;
 mod uniform_buffer;
+mod camera;
 
 struct State {
     surface: wgpu::Surface,
@@ -21,17 +24,28 @@ struct State {
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
     size: winit::dpi::PhysicalSize<u32>,
-    window: Window,
-    image_text: texture::Texture,
+    // window: &Window,
+    render_pipeline: wgpu::RenderPipeline,
+
+    image_text: texture::Texture, // image texture
     mesh_uniform: uniform_buffer::UniformBinding,
     mesh_desc: uniform_buffer::MeshDescriptor,
-    render_pipeline: wgpu::RenderPipeline,
+    depth: texture::Depth,
+    // All this for the camera? Needs it's own struct?
+    camera: camera::Camera,
+    projection: camera::Projection,
+    model_view: camera::ModelView,
+    camera_controller: camera::CameraController,
+    camera_uniform: camera::CameraUniform,
+    camera_buffer: wgpu::Buffer,
+    camera_bind_group: wgpu::BindGroup,
+    mouse_pressed: bool,
 }
 
 impl State {
     // Creating some of the wgpu types requires async code
     async fn new(
-        window: Window,
+        window: &Window,
         args: &cli::Cli,
     ) -> Self {
         let size = window.inner_size();
@@ -113,32 +127,93 @@ impl State {
             &device
         );
 
+        let depth = texture::Depth::create(&device, &config, "depth_texture");
+
+        // Camera initialization code
+
+        let model_view = camera::ModelView::new(
+            cgmath::Deg(0.0), cgmath::Deg(0.0)); // model transformations
+        let camera = camera::Camera::new(
+            (0.0, 0.0, 3.0), cgmath::Deg(-90.0), cgmath::Deg(0.0));
+        let projection = camera::Projection::new(
+            config.width, config.height, cgmath::Deg(45.0), 0.1, 100.0);
+        let camera_controller = camera::CameraController::new(4.0, 0.4);
+
+        let mut camera_uniform = camera::CameraUniform::new();
+        camera_uniform.update_view_proj(&camera, &projection, &model_view);
+
+        let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Camera Buffer"),
+            contents: bytemuck::cast_slice(&[camera_uniform]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+        let camera_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+                label: Some("camera_bind_group_layout"),
+            });
+
+        let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &camera_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: camera_buffer.as_entire_binding(),
+            }],
+            label: Some("camera_bind_group"),
+        });
+
+
+
         let render_pipeline = pipeline::make(&device, &config, &args,
-            &image_text, &mesh_uniform);
-            // &[&image_text.bind_group_layout, &mesh_uniform.bind_group_layout]);
+            // &image_text, &mesh_uniform);
+            &[
+                &image_text.bind_group_layout,
+                &mesh_uniform.bind_group_layout,
+                &camera_bind_group_layout,
+            ]);
 
         Self {
-            window,
+            // window,
             surface,
             device,
             queue,
             config,
             size,
+            render_pipeline,
             image_text,
             mesh_desc,
             mesh_uniform,
-            render_pipeline,
+            depth,
+            camera,
+            projection,
+            model_view,
+            camera_controller,
+            camera_buffer,
+            camera_bind_group,
+            camera_uniform,
+            mouse_pressed: false,
         }
 
     }
 
-    pub fn window(&self) -> &Window {
-        &self.window
-    }
+    // pub fn window(&self) -> &Window {
+    //     &self.window
+    // }
 
     // impl State
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
         if new_size.width > 0 && new_size.height > 0 {
+            self.projection.resize(new_size.width, new_size.height);
             self.size = new_size;
             self.config.width = new_size.width;
             self.config.height = new_size.height;
@@ -147,16 +222,51 @@ impl State {
     }
 
     fn input(&mut self, event: &WindowEvent) -> bool {
-        false
+        match event {
+            WindowEvent::KeyboardInput {
+                input:
+                    KeyboardInput {
+                        virtual_keycode: Some(key),
+                        state,
+                        ..
+                    },
+                ..
+            } => self.camera_controller.process_keyboard(*key, *state),
+            WindowEvent::MouseWheel { delta, .. } => {
+                // self.camera_controller.process_scroll(delta);
+                // self.camera_controller.process_mouse(delta, delta);
+                true
+            }
+            WindowEvent::MouseInput {
+                button: MouseButton::Left,
+                state,
+                ..
+            } => {
+                self.mouse_pressed = *state == ElementState::Pressed;
+                true
+            }
+            _ => false,
+        }
+
     }
 
-    fn update(&mut self) {
-        // no update yet
+    fn update(&mut self, dt: std::time::Duration) {
+        self.camera_controller.update_model_view(&mut self.model_view, dt);
+        self.camera_controller.update_camera(&mut self.camera, dt);
+        self.camera_uniform.update_view_proj(&self.camera, &self.projection,
+            &self.model_view);
+        // println!("{:?}", self.camera_uniform);
+        self.queue.write_buffer(
+            &self.camera_buffer,
+            0,
+            bytemuck::cast_slice(&[self.camera_uniform]),
+        );
     }
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
         let output = self.surface.get_current_texture()?;
-        let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let view = output.texture.create_view(
+            &wgpu::TextureViewDescriptor::default());
         let mut encoder = self.device.create_command_encoder(
             &wgpu::CommandEncoderDescriptor {label: Some("Render Encoder"),});
         {
@@ -180,13 +290,22 @@ impl State {
                         }
                     })
                 ],
-                depth_stencil_attachment: None,
+                // depth_stencil_attachment: None,
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.depth.view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: true,
+                    }),
+                    stencil_ops: None,
+                }),
             });
         
             // NEW!
             render_pass.set_pipeline(&self.render_pipeline); // 2.
             render_pass.set_bind_group(0, &self.image_text.bind_group, &[]); // NEW!
             render_pass.set_bind_group(1, &self.mesh_uniform.bind_group, &[]);
+            render_pass.set_bind_group(2, &self.camera_bind_group, &[]);
             // render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
  
             render_pass.draw(0..self.mesh_desc.nverts(), 0..1); // 3.
@@ -202,61 +321,64 @@ impl State {
     
 }
 
-pub async fn run(
-    // cli: &cli::Cli,
-    args: &cli::Cli
-) {
+pub async fn run(args: &cli::Cli) {
     env_logger::init();
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new().build(&event_loop).unwrap();
     // let mut state = State::new(window, cli, args).await;
-    let mut state = State::new(window, args).await;
+    let mut state = State::new(&window, args).await;
+    let mut last_render_time = instant::Instant::now();
 
     event_loop.run(move |event, _, control_flow| {
         match event {
-            Event::RedrawRequested(window_id) if window_id == state.window().id() => {
-                state.update();
+            Event::WindowEvent {
+                ref event,
+                window_id,
+            } if window_id == window.id() => {
+                if !state.input(event) {
+                    match event {
+                        WindowEvent::CloseRequested
+                        | WindowEvent::KeyboardInput {
+                            input:
+                                KeyboardInput {
+                                    state: ElementState::Pressed,
+                                    virtual_keycode: Some(VirtualKeyCode::Escape),
+                                    ..
+                                },
+                            ..
+                        } => *control_flow = ControlFlow::Exit,
+                        WindowEvent::Resized(physical_size) => {
+                            state.resize(*physical_size);
+                        }
+                        WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
+                            // new_inner_size is &mut so w have to dereference it twice
+                            state.resize(**new_inner_size);
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            Event::RedrawRequested(window_id) if window_id == window.id() => {
+                let now = instant::Instant::now();
+                let dt = now - last_render_time;
+                last_render_time = now;
+                state.update(dt);
                 match state.render() {
                     Ok(_) => {}
-                    // Reconfigure the surface if lost
-                    Err(wgpu::SurfaceError::Lost) => state.resize(state.size),
+                    // Reconfigure the surface if it's lost or outdated
+                    Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => state.resize(state.size),
                     // The system is out of memory, we should probably quit
                     Err(wgpu::SurfaceError::OutOfMemory) => *control_flow = ControlFlow::Exit,
-                    // All other errors (Outdated, Timeout) should be resolved by the next frame
-                    Err(e) => eprintln!("{:?}", e),
+                    // We're ignoring timeouts
+                    Err(wgpu::SurfaceError::Timeout) => log::warn!("Surface timeout"),
                 }
             }
             Event::MainEventsCleared => {
                 // RedrawRequested will only trigger once, unless we manually
                 // request it.
-                state.window().request_redraw();
-            }
-               Event::WindowEvent {
-                ref event,
-                window_id,
-            } if window_id == state.window().id() => if !state.input(event) { // UPDATED!
-                match event {
-                    WindowEvent::CloseRequested
-                    | WindowEvent::KeyboardInput {
-                        input:
-                            KeyboardInput {
-                                state: ElementState::Pressed,
-                                virtual_keycode: Some(VirtualKeyCode::Escape),
-                                ..
-                            },
-                        ..
-                    } => *control_flow = ControlFlow::Exit,
-                    WindowEvent::Resized(physical_size) => {
-                        state.resize(*physical_size);
-                    }
-                    WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
-                        state.resize(**new_inner_size);
-                    }
-                    _ => {}
-                }
+                window.request_redraw();
             }
             _ => {}
         }
     });
 }
-

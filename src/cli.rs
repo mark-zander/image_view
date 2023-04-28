@@ -43,7 +43,7 @@ impl DisplayMode {
     pub fn frag_entry(&self) -> &str {
         match &self {
             DisplayMode::Wire => "fs_wire",
-            DisplayMode::Color => "fs_color",
+            _ => "fs_color",
         }
     }
     pub fn polygon_mode(&self) -> wgpu::PolygonMode {

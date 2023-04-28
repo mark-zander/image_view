@@ -627,6 +627,7 @@ dependencies = [
  "clap",
  "env_logger",
  "image",
+ "instant",
  "log",
  "pollster",
  "wgpu",

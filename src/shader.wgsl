@@ -1,5 +1,12 @@
 // Vertex shader
 
+struct CameraUniform {
+    view_pos: vec4<f32>,
+    view_proj: mat4x4<f32>,
+};
+@group(2) @binding(0)
+var<uniform> camera: CameraUniform;
+
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     // @location(0) color: vec3<f32>,
@@ -75,6 +82,16 @@ struct VertexOutput1 {
 // @group(1) @binding(1)
 // var<uniform> pos: array<vec2<f32>, 6>;
 
+// relative positions of triangles in a quad
+const pos = array<vec2<i32>, 6>(
+    vec2<i32>(0, 0),
+    vec2<i32>(1, 1),
+    vec2<i32>(0, 1),
+    vec2<i32>(0, 0),
+    vec2<i32>(1, 0),
+    vec2<i32>(1, 1)
+);
+
 @vertex
 fn vs_main1(
     @builtin(vertex_index) index: u32,
@@ -82,58 +99,53 @@ fn vs_main1(
     var out: VertexOutput1;
     // number of vertexes in a quad, 2 triangles, 6 vertexes
     let quadsize = 6u;
-    // relative positions of triangles in a quad
-    // let pos = array<vec2<f32>, 6>(
-    //     vec2<f32>(0.0, 0.0),
-    //     vec2<f32>(1.0, 1.0),
-    //     vec2<f32>(0.0, 1.0),
-    //     vec2<f32>(0.0, 0.0),
-    //     vec2<f32>(1.0, 0.0),
-    //     vec2<f32>(1.0, 1.0)
-    // );
-    var xp: f32;
-    var yp: f32;
-    let iquad = index / 6u;
-    let quadvert = index % 6u;
+    let iquad = index / quadsize;
+    let quadvert = index % quadsize;
     let ix = iquad % mesh_desc.quads_in_row;
     let iy = iquad / mesh_desc.rows_of_quads;
+    var xp: i32;
+    var yp: i32;
     switch quadvert {
-        case 0u { xp = 0.0; yp = 0.0; }
-        case 1u { xp = 1.0; yp = 1.0; }
-        case 2u { xp = 0.0; yp = 1.0; }
-        case 3u { xp = 0.0; yp = 0.0; }
-        case 4u { xp = 1.0; yp = 0.0; }
-        case 5u { xp = 1.0; yp = 1.0; }
-        default { xp = 0.0; yp = 0.0; }
+        case 0u { xp = 0; yp = 0; }
+        case 1u { xp = 1; yp = 1; }
+        case 2u { xp = 0; yp = 1; }
+        case 3u { xp = 0; yp = 0; }
+        case 4u { xp = 1; yp = 0; }
+        case 5u { xp = 1; yp = 1; }
+        default { xp = 0; yp = 0; }
     }
     // let xp = pos[quadvert].x;
     // let yp = pos[quadvert].y;
 
-    let x = f32(ix) + xp;
-    let y = f32(iy) + yp;
-    let coords = vec2<f32>(x, y);
-    let icoords = vec2<u32>(u32(x), u32(y));
+    // let jx = f32(ix) + xp;
+    // let jy = f32(iy) + yp;
+    let jx = i32(ix) + i32(xp);
+    let jy = i32(iy) + i32(yp);
+    let coords = vec2<f32>(f32(jx), f32(jy));
+    let icoords = vec2<i32>(i32(jx), i32(jy));
 
     out.wire_tex = coords;
 
     out.image_tex.x = coords.x / f32(mesh_desc.quads_in_row);
     out.image_tex.y = 1.0 - coords.y / f32(mesh_desc.rows_of_quads);
 
-    out.clip_position.x = coords.x * mesh_desc.xscale + mesh_desc.xoffset;
-    out.clip_position.y = coords.y * mesh_desc.yscale + mesh_desc.yoffset;
-    // out.clip_position.z = 0.0;
-    let rgba = textureLoad(image_tex, icoords, 0);
-    let rgb = vec3<f32>(rgba.r, rgba.g, rgba.b);
-    // out.clip_position.z = sqrt(dot(rgb, rgb));
-    // out.clip_position.z = (rgba.r + rgba.g + rgba.b) / 3.0;
-    // out.clip_position.z = (rgba.r + rgba.g + rgba.b) / 3.0;
-    out.clip_position.z = sqrt(
-        rgba.r * rgba.r + rgba.g * rgba.g + rgba.b * rgba.b) / 3.0;
-    out.clip_position.w = 1.0;
-
-    // out.clip_position.x = (f32(ix) + pos[quadvert].x) * mesh_desc.xscale;
-    // out.clip_position.y = (f32(iy) + pos[quadvert].y) * mesh_desc.yscale;
-    // out.clip_position.z = 0.0;
+    // out.clip_position.x = coords.x * mesh_desc.xscale + mesh_desc.xoffset;
+    // out.clip_position.y = coords.y * mesh_desc.yscale + mesh_desc.yoffset;
+    let x = coords.x * mesh_desc.xscale + mesh_desc.xoffset;
+    let y = coords.y * mesh_desc.yscale + mesh_desc.yoffset;
+    let dim = textureDimensions(image_tex);
+    let jcoords = vec2<i32>(
+        i32(coords.x * f32(dim.x) / f32(mesh_desc.quads_in_row)),
+        i32((f32(mesh_desc.rows_of_quads) - coords.y) * f32(dim.y)
+            / f32(mesh_desc.rows_of_quads))
+    );
+    // let jcoords = vec2<i32>(
+    //     icoords.x * dim.x / i32(mesh_desc.quads_in_row),
+    //     icoords.y * dim.y / i32(mesh_desc.rows_of_quads)
+    // );
+    let rgba = textureLoad(image_tex, jcoords, 0);
+    let z = sqrt(dot(rgba.rgb, rgba.rgb)) / 3.0;
+    out.clip_position = camera.view_proj * vec4<f32>(x, y, z, 1.0);
 
     return out;
 }

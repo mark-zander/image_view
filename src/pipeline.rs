@@ -6,9 +6,10 @@ pub fn make(
     device: &wgpu::Device,
     config: &wgpu::SurfaceConfiguration,
     args: &cli::Cli, 
-    image_text: &texture::Texture,
-    mesh_uniform: &uniform_buffer::UniformBinding,
-    // bind_group_layouts: &[&wgpu::BindGroupLayout]
+    // image_text: &texture::Texture,
+    // mesh_uniform: &uniform_buffer::UniformBinding,
+    // camera_uniform: &camera::CameraUniform,
+    bind_group_layouts: &[&wgpu::BindGroupLayout]
 ) -> wgpu::RenderPipeline {
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("Shader"),
@@ -17,10 +18,12 @@ pub fn make(
     let render_pipeline_layout =
         device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Render Pipeline Layout"),
-            bind_group_layouts: &[
-                &image_text.bind_group_layout,
-                &mesh_uniform.bind_group_layout // NEW!
-            ],
+            bind_group_layouts: bind_group_layouts,
+            // &[
+            //     &image_text.bind_group_layout,
+            //     &mesh_uniform.bind_group_layout,
+            //     &camera_uniform.bind
+            // ],
             // bind_group_layouts: bind_group_layouts, // NEW!
             push_constant_ranges: &[],
         });
@@ -45,7 +48,8 @@ pub fn make(
             topology: wgpu::PrimitiveTopology::TriangleList, // 1.
             strip_index_format: None,
             front_face: wgpu::FrontFace::Ccw, // 2.
-            cull_mode: Some(wgpu::Face::Back),
+            // cull_mode: Some(wgpu::Face::Back),
+            cull_mode: None,
             // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
             polygon_mode: args.polygon_mode(),
             // polygon_mode: wgpu::PolygonMode::Fill,
@@ -55,8 +59,15 @@ pub fn make(
             // Requires Features::CONSERVATIVE_RASTERIZATION
             conservative: false,
         },
-        depth_stencil: None, // 1.
-        multisample: wgpu::MultisampleState {
+        // depth_stencil: None, // 1.
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: texture::Depth::DEPTH_FORMAT,
+            depth_write_enabled: true,
+            depth_compare: wgpu::CompareFunction::Less, // 1.
+            stencil: wgpu::StencilState::default(), // 2.
+            bias: wgpu::DepthBiasState::default(),
+        }),
+            multisample: wgpu::MultisampleState {
             count: 1, // 2.
             mask: !0, // 3.
             alpha_to_coverage_enabled: false, // 4.
