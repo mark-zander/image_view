@@ -32,7 +32,7 @@ pub fn make(
         layout: Some(&render_pipeline_layout),
         vertex: wgpu::VertexState {
             module: &shader,
-            entry_point: "vs_main1", // 1.
+            entry_point: "vs_main", // 1.
             buffers: &[], // 2.
         },
         fragment: Some(wgpu::FragmentState { // 3.

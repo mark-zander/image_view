@@ -20,6 +20,18 @@ pub struct Cli {
     /// Controls the way each polygon is rasterized
     display_mode: DisplayMode,
 
+    #[arg(short, long, default_value_t=11)]
+    /// Resolution of the display grid in both x and y
+    resolution: u32,
+
+    #[arg(short, long, default_value_t=11)]
+    /// X resolution of the display grid
+    xres: u32,
+
+    #[arg(short, long, default_value_t=11)]
+    /// Y resolution of the display grid
+    yres: u32,
+
 }
 
 impl Cli {
