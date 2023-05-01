@@ -14,7 +14,7 @@ struct MeshDescriptor {
     yoffset: f32,       // location of first y value
     xscale: f32,        // x scale factor
     yscale: f32,        // y scale factor
-    channel: u32,       // red, green or blue color channel
+    channel: i32,       // red, green or blue color channel
     nverts: u32,
 };
 
@@ -73,14 +73,22 @@ fn vs_main(
     let x = coords.x * mesh_desc.xscale + mesh_desc.xoffset;
     let y = coords.y * mesh_desc.yscale + mesh_desc.yoffset;
     let dim = textureDimensions(image_tex);
-    let jcoords = vec2<i32>(
+    let icoords = vec2<i32>(
         i32(coords.x * f32(dim.x) / f32(mesh_desc.quads_in_row + 1u) + 0.5),
         i32((f32(mesh_desc.rows_of_quads) - coords.y) * f32(dim.y)
             / f32(mesh_desc.rows_of_quads + 1u) + 0.5)
     );
 
-    let rgba = textureLoad(image_tex, jcoords, 0);
-    let z = sqrt(dot(rgba.rgb, rgba.rgb)) / 3.0;
+    let rgba = textureLoad(image_tex, icoords, 0);
+    var z: f32;
+    switch mesh_desc.channel {
+        case 0 { z = sqrt(dot(rgba.rgb, rgba.rgb)) / 3.0; }
+        case 1 { z = rgba.r; }
+        case 2 { z = rgba.g; }
+        case 3 { z = rgba.b; }
+        default { z = sqrt(dot(rgba.rgb, rgba.rgb)) / 3.0; }
+    }
+    // let z = sqrt(dot(rgba.rgb, rgba.rgb)) / 3.0;
     out.clip_position = camera.view_proj * vec4<f32>(x, y, z, 1.0);
 
     return out;
@@ -93,14 +101,40 @@ var image_tex: texture_2d<f32>;
 @group(0)@binding(1)
 var image_sampler: sampler;
 
-@fragment
-fn fs_color(in: VertexOutput) -> @location(0) vec4<f32> {
-    return textureSample(image_tex, image_sampler, in.image_tex);
-}
-
 // Hardware wire frame
 @fragment
 fn fs_wire(in: VertexOutput) -> @location(0) vec4<f32> {
     return vec4<f32>(1.0, 1.0, 1.0, 1.0);
 
 }
+
+@fragment
+fn fs_color(in: VertexOutput) -> @location(0) vec4<f32> {
+    return textureSample(image_tex, image_sampler, in.image_tex);
+}
+
+@fragment
+fn fs_grey(in: VertexOutput) -> @location(0) vec4<f32> {
+    let rgba = textureSample(image_tex, image_sampler, in.image_tex);
+    let grey = sqrt(dot(rgba.rgb, rgba.rgb)) / 3.0;
+    return vec4<f32>(grey, grey, grey, 1.0);
+}
+
+@fragment
+fn fs_red(in: VertexOutput) -> @location(0) vec4<f32> {
+    let rgba = textureSample(image_tex, image_sampler, in.image_tex);
+    return vec4<f32>(rgba.r, 0.0, 0.0, 1.0);
+}
+
+@fragment
+fn fs_green(in: VertexOutput) -> @location(0) vec4<f32> {
+    let rgba = textureSample(image_tex, image_sampler, in.image_tex);
+    return vec4<f32>(0.0, rgba.g, 0.0, 1.0);
+}
+
+@fragment
+fn fs_blue(in: VertexOutput) -> @location(0) vec4<f32> {
+    let rgba = textureSample(image_tex, image_sampler, in.image_tex);
+    return vec4<f32>(0.0, 0.0, rgba.b, 1.0);
+}
+

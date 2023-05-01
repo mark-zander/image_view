@@ -120,7 +120,8 @@ impl State {
         let image_text = texture::Texture::from_image(
             &device, &queue, &image, "image data").unwrap();
 
-        let mesh_desc = uniform_buffer::MeshDescriptor::default(11, 11);
+        let mesh_desc = uniform_buffer::MeshDescriptor::default(
+            args.xres(), args.yres(), args.channel());
 
         let mesh_uniform = uniform_buffer::UniformBinding::new(
             mesh_desc.mesh_buffer(&device),

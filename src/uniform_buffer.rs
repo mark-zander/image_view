@@ -11,7 +11,7 @@ pub struct MeshDescriptor {
     yoffset: f32,       // location of first y value
     xscale: f32,        // x scale factor
     yscale: f32,        // y scale factor
-    channel: u32,       // red, green or blue color channel
+    channel: i32,       // red, green or blue color channel
     nverts: u32,
 }
 
@@ -23,7 +23,7 @@ impl MeshDescriptor {
         yoffset: f32,   // location of first y value
         xscale: f32,    // x scale factor
         yscale: f32,    // y scale factor
-        channel: u32,   // red, green or blue color channel
+        channel: i32,   // red, green or blue color channel
         nverts: u32,
     ) -> Self {
         Self {
@@ -42,6 +42,7 @@ impl MeshDescriptor {
     pub fn default(
         rowsize: u32,   // number of vertexes in a row
         nrows: u32,     // number of rows of vertexes
+        channel: i32,
     ) -> Self {
         let quads_in_row = rowsize - 1;
         let rows_of_quads = nrows - 1;
@@ -55,7 +56,7 @@ impl MeshDescriptor {
             yoffset: -1.0,
             xscale,
             yscale,
-            channel: 0,
+            channel,
             nverts,
         }
     }
@@ -68,7 +69,8 @@ impl MeshDescriptor {
             &wgpu::util::BufferInitDescriptor {
                 label: Some("Mesh"),
                 contents: bytemuck::cast_slice(&[self]),
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                usage: wgpu::BufferUsages::UNIFORM |
+                    wgpu::BufferUsages::COPY_DST,
             }
         )
     }
