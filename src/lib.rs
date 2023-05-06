@@ -1,3 +1,4 @@
+use uniform_buffer::MeshDescriptor;
 // lib.rs
 use winit::{
     event::*,
@@ -28,8 +29,10 @@ struct State {
     render_pipeline: wgpu::RenderPipeline,
 
     image_text: texture::Texture, // image texture
-    mesh_uniform: uniform_buffer::UniformBinding,
     mesh_desc: uniform_buffer::MeshDescriptor,
+    mesh_uniform: uniform_buffer::UniformBinding,
+    multi_mesh_desc: [uniform_buffer::MeshDescriptor; 3],
+    multi_mesh_uniform: [uniform_buffer::UniformBinding; 3],
     depth: texture::Depth,
     // All this for the camera? Needs it's own struct?
     camera: camera::Camera,
@@ -40,6 +43,7 @@ struct State {
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
     mouse_pressed: bool,
+    channel: i32,
 }
 
 impl State {
@@ -124,9 +128,38 @@ impl State {
             args.xres(), args.yres(), args.channel());
 
         let mesh_uniform = uniform_buffer::UniformBinding::new(
-            mesh_desc.mesh_buffer(&device),
-            &device
+            mesh_desc.mesh_buffer(&device), &device
         );
+
+        // if args.rgb_channel()
+
+        let multi_mesh_desc: [uniform_buffer::MeshDescriptor; 3] = [
+            uniform_buffer::MeshDescriptor::default(
+                args.xres(), args.yres(), cli::Channel::red()),
+            uniform_buffer::MeshDescriptor::default(
+                args.xres(), args.yres(), cli::Channel::green()),
+            uniform_buffer::MeshDescriptor::default(
+                args.xres(), args.yres(), cli::Channel::blue()),
+        ];
+
+        let multi_mesh_uniform: [uniform_buffer::UniformBinding; 3] =
+            multi_mesh_desc.map(|x|
+            uniform_buffer::UniformBinding::new(
+                x.mesh_buffer(&device), &device
+            ));
+
+
+        // let multi_mesh_uniform: [uniform_buffer::UniformBinding; 3] = [
+        //     uniform_buffer::UniformBinding::new(
+        //         multi_mesh_desc[0].mesh_buffer(&device), &device
+        //     ),
+        //     uniform_buffer::UniformBinding::new(
+        //         multi_mesh_desc[1].mesh_buffer(&device), &device
+        //     ),
+        //     uniform_buffer::UniformBinding::new(
+        //         multi_mesh_desc[2].mesh_buffer(&device), &device
+        //     ),
+        // ];
 
         let depth = texture::Depth::create(&device, &config, "depth_texture");
 
@@ -194,6 +227,8 @@ impl State {
             image_text,
             mesh_desc,
             mesh_uniform,
+            multi_mesh_desc,
+            multi_mesh_uniform,
             depth,
             camera,
             projection,
@@ -203,6 +238,7 @@ impl State {
             camera_bind_group,
             camera_uniform,
             mouse_pressed: false,
+            channel: args.channel(),
         }
 
     }
@@ -281,11 +317,13 @@ impl State {
                         view: &view,
                         resolve_target: None,
                         ops: wgpu::Operations {
+                            // must be zero to overwrite one image on another
+                            // blending properly may fix this?
                             load: wgpu::LoadOp::Clear(
                                 wgpu::Color {
-                                    r: 0.1,
-                                    g: 0.2,
-                                    b: 0.3,
+                                    r: 0.0,
+                                    g: 0.0,
+                                    b: 0.0,
                                     a: 1.0,
                                 }
                             ),
@@ -303,16 +341,33 @@ impl State {
                     stencil_ops: None,
                 }),
             });
+
+            if !cli::Channel::is_rgb(self.channel) {
+                render_pass.set_pipeline(&self.render_pipeline); // 2.
+                render_pass.set_bind_group(
+                    0, &self.image_text.bind_group, &[]); // NEW!
+                render_pass.set_bind_group(
+                    1, &self.mesh_uniform.bind_group, &[]);
+                render_pass.set_bind_group(
+                    2, &self.camera_bind_group, &[]);
+                // render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
+    
+                render_pass.draw(0..self.mesh_desc.nverts(), 0..1); // 3.
+                // render_pass.draw(0..726, 0..1); // 3.
+            } else {
+                for chn in 1..4 {
+                    render_pass.set_pipeline(&self.render_pipeline); // 2.
+                    render_pass.set_bind_group(
+                        0, &self.image_text.bind_group, &[]); // NEW!
+                    render_pass.set_bind_group(
+                        1, &self.multi_mesh_uniform[chn - 1].bind_group, &[]);
+                    render_pass.set_bind_group(
+                        2, &self.camera_bind_group, &[]);
+                    // render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
         
-            // NEW!
-            render_pass.set_pipeline(&self.render_pipeline); // 2.
-            render_pass.set_bind_group(0, &self.image_text.bind_group, &[]); // NEW!
-            render_pass.set_bind_group(1, &self.mesh_uniform.bind_group, &[]);
-            render_pass.set_bind_group(2, &self.camera_bind_group, &[]);
-            // render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
- 
-            render_pass.draw(0..self.mesh_desc.nverts(), 0..1); // 3.
-            // render_pass.draw(0..726, 0..1); // 3.
+                    render_pass.draw(0..self.mesh_desc.nverts(), 0..1); // 3.
+                }
+            }
         }
     
         // submit will accept anything that implements IntoIter

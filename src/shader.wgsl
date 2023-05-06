@@ -15,7 +15,7 @@ struct MeshDescriptor {
     xscale: f32,        // x scale factor
     yscale: f32,        // y scale factor
     channel: i32,       // red, green or blue color channel
-    nverts: u32,
+    zoffset: f32,
 };
 
 @group(1) @binding(0)
@@ -111,6 +111,23 @@ fn fs_wire(in: VertexOutput) -> @location(0) vec4<f32> {
 @fragment
 fn fs_color(in: VertexOutput) -> @location(0) vec4<f32> {
     return textureSample(image_tex, image_sampler, in.image_tex);
+}
+
+@fragment
+fn fs_fill(in: VertexOutput) -> @location(0) vec4<f32> {
+    var out: vec4<f32>;
+    let rgba = textureSample(image_tex, image_sampler, in.image_tex);
+    switch mesh_desc.channel {
+        case 0 { out = rgba; }
+        case 1 { out = vec4<f32>(rgba.r, 0.0, 0.0, 1.0); }
+        case 2 { out = vec4<f32>(0.0, rgba.g, 0.0, 1.0); }
+        case 3 { out = vec4<f32>(0.0, 0.0, rgba.b, 1.0); }
+        default {
+            let grey = sqrt(dot(rgba.rgb, rgba.rgb)) / 3.0;
+            return vec4<f32>(grey, grey, grey, 1.0);
+        }
+    }
+    return out;
 }
 
 @fragment

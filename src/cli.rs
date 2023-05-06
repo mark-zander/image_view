@@ -54,27 +54,35 @@ impl Cli {
         else { wgpu::PolygonMode::Fill }
     }
     pub fn frag_entry(self: &Self) -> &str {
-        if self.wire {
-            "fs_wire"
-        } else {
-            match self.channel {
-                Channel::All => "fs_color",
-                Channel::Red => "fs_red",
-                Channel::Green => "fs_green",
-                Channel::Blue => "fs_blue",
-                Channel::Grey => "fs_grey",
-            }
-        }
+        if self.wire { "fs_wire" }
+        else { "fs_fill" }
     }
-    pub fn channel(self: &Self) -> i32 {
-        match self.channel {
-            Channel::All => 0,
-            Channel::Red => 1,
-            Channel::Green => 2,
-            Channel::Blue => 3,
-            Channel::Grey => 4,
-        }
-    }
+    // } else if self.channel == Channel::Grey {
+        //     "fs_grey"
+        // } else {
+        //     "fs_color"
+            // match self.channel {
+            //     Channel::All => "fs_color",
+            //     Channel::Red => "fs_red",
+            //     Channel::Green => "fs_green",
+            //     Channel::Blue => "fs_blue",
+            //     Channel::Grey => "fs_grey",
+            // }
+        // }
+
+    pub fn channel(self: &Self) -> i32 { self.channel.channel() }
+    // pub fn color_writes(&self) -> wgpu::ColorWrites {
+    //     match self.channel {
+    //         Channel::All => wgpu::ColorWrites::ALL,
+    //         Channel::Red => wgpu::ColorWrites::RED,
+    //         Channel::Green => wgpu::ColorWrites::GREEN,
+    //         Channel::Blue => wgpu::ColorWrites::BLUE,
+    //         Channel::Grey => wgpu::ColorWrites::ALL,
+    //     }
+    // }
+    // Channel::Red => wgpu::ColorWrites::RED | wgpu::ColorWrites::ALPHA,
+            // Channel::Green => wgpu::ColorWrites::GREEN | wgpu::ColorWrites::ALPHA,
+            // Channel::Blue => wgpu::ColorWrites::BLUE | wgpu::ColorWrites::ALPHA,
     pub fn xres(self: &Self) -> u32 {
         if self.xres > 11 { self.xres }
         else if self.resolution > 11 { self.resolution }
@@ -95,7 +103,26 @@ pub enum Channel {
     Green,
     Blue,
     Grey,
+    Rgb,
 }
+
+impl Channel {
+    pub fn channel(self: &Self) -> i32 {
+        match self {
+            Channel::All => 0,
+            Channel::Red => 1,
+            Channel::Green => 2,
+            Channel::Blue => 3,
+            Channel::Grey => 4,
+            Channel::Rgb => 5,
+        }
+    }
+    pub fn red() -> i32 { 1 }
+    pub fn green() -> i32 { 2 }
+    pub fn blue() -> i32 { 3 }
+    pub fn is_rgb(channel: i32) -> bool { channel == 5 }
+}
+
 
 // #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug, Default)]
 // pub enum DisplayMode {

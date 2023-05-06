@@ -12,7 +12,7 @@ pub struct MeshDescriptor {
     xscale: f32,        // x scale factor
     yscale: f32,        // y scale factor
     channel: i32,       // red, green or blue color channel
-    nverts: u32,
+    zoffset: f32,
 }
 
 impl MeshDescriptor {
@@ -24,7 +24,7 @@ impl MeshDescriptor {
         xscale: f32,    // x scale factor
         yscale: f32,    // y scale factor
         channel: i32,   // red, green or blue color channel
-        nverts: u32,
+        zoffset: f32,
     ) -> Self {
         Self {
             quads_in_row: rowsize - 1,
@@ -34,7 +34,7 @@ impl MeshDescriptor {
             xscale,
             yscale,
             channel,
-            nverts,
+            zoffset,
         }
     }
     // Sets up so that the scale goes from -1 to +1 for both
@@ -48,7 +48,8 @@ impl MeshDescriptor {
         let rows_of_quads = nrows - 1;
         let xscale = 2.0 / quads_in_row as f32;
         let yscale = 2.0 / rows_of_quads as f32;
-        let nverts = quads_in_row * rows_of_quads * 6;
+        // let nverts = quads_in_row * rows_of_quads * 6;
+        let zoffset = 0.0;
         Self {
             quads_in_row,
             rows_of_quads,
@@ -57,11 +58,23 @@ impl MeshDescriptor {
             xscale,
             yscale,
             channel,
-            nverts,
+            zoffset,
         }
     }
     pub fn nverts(self: &Self) -> u32 {
         self.quads_in_row * self.rows_of_quads * 6
+    }
+    pub fn chan(&self, channel: i32, zoffset: f32) -> Self {
+        Self {
+            quads_in_row: self.quads_in_row,
+            rows_of_quads: self.rows_of_quads,
+            xoffset: self.xoffset,
+            yoffset: self.yoffset,
+            xscale: self.xscale,
+            yscale: self.yscale,
+            channel,
+            zoffset,
+        }
     }
     pub fn mesh_buffer(self: Self, device: &wgpu::Device) -> wgpu::Buffer {
         // let mesh_buffer = 
@@ -88,7 +101,8 @@ impl UniformBinding {
                 entries: &[
                     wgpu::BindGroupLayoutEntry {
                         binding: 0,
-                        visibility: wgpu::ShaderStages::VERTEX,
+                        // visibility: wgpu::ShaderStages::VERTEX,
+                        visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                         ty: wgpu::BindingType::Buffer {
                             ty: wgpu::BufferBindingType::Uniform,
                             has_dynamic_offset: false,
