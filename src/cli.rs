@@ -98,29 +98,32 @@ impl Cli {
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug, Default)]
 pub enum Channel {
     #[default]
-    All,
-    Red,
-    Green,
-    Blue,
-    Grey,
-    Rgb,
+    All = 0,
+    Red = 1,
+    Green = 2,
+    Blue = 3,
+    Grey = 4,
+    Rgb = 5,
 }
 
 impl Channel {
-    pub fn channel(self: &Self) -> i32 {
-        match self {
-            Channel::All => 0,
-            Channel::Red => 1,
-            Channel::Green => 2,
-            Channel::Blue => 3,
-            Channel::Grey => 4,
-            Channel::Rgb => 5,
+    pub fn channel(self: &Self) -> i32 { *self as i32 }
+    pub fn red() -> i32 { Channel::Red as i32 }
+    pub fn green() -> i32 { Channel::Green as i32 }
+    pub fn blue() -> i32 { Channel::Blue as i32 }
+    pub fn is_rgb(channel: i32) -> bool { channel == Channel::Rgb as i32 }
+    pub fn color_writes(chan: i32) -> wgpu::ColorWrites {
+        match chan {
+            1 => wgpu::ColorWrites::RED,
+            2 => wgpu::ColorWrites::GREEN,
+            3 => wgpu::ColorWrites::BLUE,
+            // Channel::Red => wgpu::ColorWrites::RED,
+            // Channel::Green => wgpu::ColorWrites::GREEN,
+            // Channel::Blue => wgpu::ColorWrites::BLUE,
+            _ => wgpu::ColorWrites::ALL,
         }
     }
-    pub fn red() -> i32 { 1 }
-    pub fn green() -> i32 { 2 }
-    pub fn blue() -> i32 { 3 }
-    pub fn is_rgb(channel: i32) -> bool { channel == 5 }
+
 }
 
 
@@ -146,3 +149,13 @@ impl Channel {
 //     }
 // }
 
+    // pub fn channel(self: &Self) -> i32 {
+    //     match self {
+    //         Channel::All => 0,
+    //         Channel::Red => 1,
+    //         Channel::Green => 2,
+    //         Channel::Blue => 3,
+    //         Channel::Grey => 4,
+    //         Channel::Rgb => 5,
+    //     }
+    // }

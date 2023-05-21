@@ -1,11 +1,12 @@
 use wgpu;
 
-use crate::{texture, uniform_buffer, cli};
+use crate::{texture, cli};
 
 pub fn make(
     device: &wgpu::Device,
     config: &wgpu::SurfaceConfiguration,
-    args: &cli::Cli, 
+    args: &cli::Cli,
+    chan: i32,
     // image_text: &texture::Texture,
     // mesh_uniform: &uniform_buffer::UniformBinding,
     // camera_uniform: &camera::CameraUniform,
@@ -40,20 +41,21 @@ pub fn make(
             entry_point: &args.frag_entry(),
             targets: &[Some(wgpu::ColorTargetState { // 4.
                 format: config.format,
-                // blend: Some(wgpu::BlendState::REPLACE),
-                blend: Some(wgpu::BlendState {
-                    color: wgpu::BlendComponent {
-                        src_factor: wgpu::BlendFactor::One,
-                        dst_factor: wgpu::BlendFactor::One,
-                        operation: wgpu::BlendOperation::Add,
-                    },
-                    alpha: wgpu::BlendComponent {
-                        src_factor: wgpu::BlendFactor::One,
-                        dst_factor: wgpu::BlendFactor::Zero,
-                        operation: wgpu::BlendOperation::Add,
-                    }
-                }),
-                write_mask: wgpu::ColorWrites::ALL,
+                blend: Some(wgpu::BlendState::REPLACE),
+                // blend: Some(wgpu::BlendState {
+                //     color: wgpu::BlendComponent {
+                //         src_factor: wgpu::BlendFactor::One,
+                //         dst_factor: wgpu::BlendFactor::One,
+                //         operation: wgpu::BlendOperation::Add,
+                //     },
+                //     alpha: wgpu::BlendComponent {
+                //         src_factor: wgpu::BlendFactor::One,
+                //         dst_factor: wgpu::BlendFactor::Zero,
+                //         operation: wgpu::BlendOperation::Add,
+                //     }
+                // }),
+                write_mask: cli::Channel::color_writes(chan),
+                // write_mask: wgpu::ColorWrites::ALL,
                 // write_mask: args.color_writes(),
             })],
         }),
