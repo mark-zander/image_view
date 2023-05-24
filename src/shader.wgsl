@@ -15,7 +15,7 @@ struct MeshDescriptor {
     xscale: f32,        // x scale factor
     yscale: f32,        // y scale factor
     channel: i32,       // red, green or blue color channel
-    zoffset: f32,
+    zdisplace: f32,
 };
 
 @group(1) @binding(0)
@@ -83,9 +83,9 @@ fn vs_main(
     var z: f32;
     switch mesh_desc.channel {
         case 0 { z = sqrt(dot(rgba.rgb, rgba.rgb)) / 3.0; }
-        case 1 { z = rgba.r; }
-        case 2 { z = rgba.g; }
-        case 3 { z = rgba.b; }
+        case 1 { z = rgba.r + mesh_desc.zdisplace; }
+        case 2 { z = rgba.g + mesh_desc.zdisplace; }
+        case 3 { z = rgba.b + mesh_desc.zdisplace; }
         default { z = sqrt(dot(rgba.rgb, rgba.rgb)) / 3.0; }
     }
     // let z = sqrt(dot(rgba.rgb, rgba.rgb)) / 3.0;

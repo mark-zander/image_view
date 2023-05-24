@@ -11,7 +11,7 @@ pub struct Descriptor {
     xscale: f32,        // x scale factor
     yscale: f32,        // y scale factor
     channel: i32,       // red, green or blue color channel
-    zoffset: f32,
+    zdisplace: f32,     // z displacement between rgb color grids
 }
 
 impl Descriptor {
@@ -23,7 +23,7 @@ impl Descriptor {
         xscale: f32,    // x scale factor
         yscale: f32,    // y scale factor
         channel: i32,   // red, green or blue color channel
-        zoffset: f32,
+        zdisplace: f32,
     ) -> Self {
         Self {
             quads_in_row: rowsize - 1,
@@ -33,7 +33,7 @@ impl Descriptor {
             xscale,
             yscale,
             channel,
-            zoffset,
+            zdisplace,
         }
     }
     // Sets up so that the scale goes from -1 to +1 for both
@@ -42,7 +42,7 @@ impl Descriptor {
         rowsize: u32,   // number of vertexes in a row
         nrows: u32,     // number of rows of vertexes
         channel: i32,
-        zoffset: f32,
+        zdisplace: f32,
     ) -> Self {
         let quads_in_row = rowsize - 1;
         let rows_of_quads = nrows - 1;
@@ -56,13 +56,13 @@ impl Descriptor {
             xscale,
             yscale,
             channel,
-            zoffset,
+            zdisplace,
         }
     }
-    pub fn another(&self, channel: i32, zoffset: f32) -> Descriptor {
+    pub fn another(&self, channel: i32, zdisplace: f32) -> Descriptor {
         Descriptor {
             channel,
-            zoffset,
+            zdisplace,
             ..*self
         }
     }

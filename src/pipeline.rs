@@ -5,7 +5,7 @@ use crate::{texture, cli};
 pub fn make(
     device: &wgpu::Device,
     config: &wgpu::SurfaceConfiguration,
-    args: &cli::Cli,
+    args: &cli::Args,
     chan: i32,
     // image_text: &texture::Texture,
     // mesh_uniform: &uniform_buffer::UniformBinding,

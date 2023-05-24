@@ -19,6 +19,7 @@ mod texture;
 mod camera;
 
 struct State {
+    args: cli::Args,
     surface: wgpu::Surface,
     device: wgpu::Device,
     queue: wgpu::Queue,
@@ -32,6 +33,7 @@ struct State {
 
     image_text: texture::Texture, // image texture
     // mesh_group: mesh::Group,
+    mesh: mesh::Descriptor,
     mesh_data: mesh::Data,
     mesh_data_red: mesh::Data,
     mesh_data_green: mesh::Data,
@@ -47,6 +49,7 @@ struct State {
     projection: camera::Projection,
     model_view: camera::ModelView,
     camera_controller: camera::CameraController,
+    camera_bind_group_layout: wgpu::BindGroupLayout,
     camera_uniform: camera::CameraUniform,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
@@ -58,7 +61,7 @@ impl State {
     // Creating some of the wgpu types requires async code
     async fn new(
         window: &Window,
-        args: &cli::Cli,
+        cli: &cli::Cli,
     ) -> Self {
         let size = window.inner_size();
 
@@ -124,7 +127,7 @@ impl State {
         };
         surface.configure(&device, &config);
 
-        let image_file = ImageReader::open(&args.image_name()).expect(
+        let image_file = ImageReader::open(&cli.image_name()).expect(
             "Error: Failed to open file");
         let image = image_file.decode().expect(
             "Error: Failed to read image");
@@ -148,7 +151,7 @@ impl State {
         // let mesh_group = mesh::Group::new(args, &device);
 
         let mesh = mesh::Descriptor::default(
-            args.xres(), args.yres(), args.channel(), 0.0);
+            cli.xres(), cli.yres(), cli.channel(), 0.0);
         let mesh_data = mesh::Data::new(mesh, &device);
 
         let mesh_red = mesh.another(cli::Channel::red(), 0.0);
@@ -203,6 +206,8 @@ impl State {
             label: Some("camera_bind_group"),
         });
 
+        let args = cli.args();
+
         let render_pipeline = pipeline::make(&device, &config, &args,
             mesh_data.channel(),
             &[
@@ -239,6 +244,7 @@ impl State {
 
         Self {
             // window,
+            args,
             surface,
             device,
             queue,
@@ -249,6 +255,7 @@ impl State {
             render_pipeline_green,
             render_pipeline_blue,
             image_text,
+            mesh,
             mesh_data,
             mesh_data_red,
             mesh_data_green,
@@ -263,11 +270,12 @@ impl State {
             projection,
             model_view,
             camera_controller,
+            camera_bind_group_layout,
             camera_buffer,
             camera_bind_group,
             camera_uniform,
             mouse_pressed: false,
-            channel: args.channel(),
+            channel: cli.channel(),
         }
 
     }
@@ -335,7 +343,21 @@ impl State {
         encoder: &mut wgpu::CommandEncoder,
         view: &wgpu::TextureView,
         chn: i32,
+        z_displace: f32,
     ) {
+        let mesh = self.mesh.another(chn, z_displace);
+        let mesh_data = mesh::Data::new(mesh, &self.device);
+
+        let render_pipeline = pipeline::make(&self.device, &self.config,
+            &self.args,
+            mesh_data.channel(),
+            &[
+                &self.image_text.bind_group_layout,
+                &mesh_data.layout,
+                &self.camera_bind_group_layout,
+            ]);
+
+
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Render Pass"),
             // There could be more than 1 render target.
@@ -373,29 +395,32 @@ impl State {
 
 
         
-        match chn {
-            1 => {
-                render_pass.set_pipeline(&self.render_pipeline_red);
-                render_pass.set_bind_group(
-                    1, &self.mesh_data_red.bind, &[]);
-            },
-            2 => {
-                render_pass.set_pipeline(&self.render_pipeline_green);
-                render_pass.set_bind_group(
-                    1, &self.mesh_data_green.bind, &[]);
-            },
-            3 => {
-                render_pass.set_pipeline(&self.render_pipeline_blue);
-                render_pass.set_bind_group(
-                    1, &self.mesh_data_blue.bind, &[]);
-            },
-            _ => {
-                render_pass.set_pipeline(&self.render_pipeline);
-                render_pass.set_bind_group(
-                    1, &self.mesh_data.bind, &[]);
-            },
-        }
+        // match chn {
+        //     1 => {
+        //         render_pass.set_pipeline(&self.render_pipeline_red);
+        //         render_pass.set_bind_group(
+        //             1, &self.mesh_data_red.bind, &[]);
+        //     },
+        //     2 => {
+        //         render_pass.set_pipeline(&self.render_pipeline_green);
+        //         render_pass.set_bind_group(
+        //             1, &self.mesh_data_green.bind, &[]);
+        //     },
+        //     3 => {
+        //         render_pass.set_pipeline(&self.render_pipeline_blue);
+        //         render_pass.set_bind_group(
+        //             1, &self.mesh_data_blue.bind, &[]);
+        //     },
+        //     _ => {
+        //         render_pass.set_pipeline(&render_pipeline);
+        //         render_pass.set_bind_group(
+        //             1, &mesh_data.bind, &[]);
+        //     },
+        // }
 
+        render_pass.set_pipeline(&render_pipeline);
+        render_pass.set_bind_group(
+            1, &mesh_data.bind, &[]);
         render_pass.set_bind_group(
             0, &self.image_text.bind_group, &[]); // NEW!
         render_pass.set_bind_group(
@@ -419,11 +444,19 @@ impl State {
         let mut encoder = self.device.create_command_encoder(
             &wgpu::CommandEncoderDescriptor {label: Some("Render Encoder"),});
         if !cli::Channel::is_rgb(self.channel) {
-            self.render_pass(&mut encoder, &view, 0);
+            self.render_pass(&mut encoder, &view, self.args.channel(), 0.0);
         } else {
-            self.render_pass(&mut encoder, &view, 1);
-            self.render_pass(&mut encoder, &view, 2);
-            self.render_pass(&mut encoder, &view, 3);
+            // self.render_pass(&mut encoder, &view, 1, 0.0);
+            // self.render_pass(&mut encoder, &view, 2, 0.0);
+            // self.render_pass(&mut encoder, &view, 3, 0.0);
+            // let colors = [cli::Channel::Red, cli::Channel::Green, cli::Channel::Blue];
+            use cli::Channel::*;
+            let colors = [Red, Green, Blue];
+            let mut z_displace = -1.0f32;
+            for chan in colors {
+                self.render_pass(&mut encoder, &view, chan.channel(), z_displace);
+                z_displace += self.args.z_displace;
+            }
         }
         // submit will accept anything that implements IntoIter
         self.queue.submit(std::iter::once(encoder.finish()));
