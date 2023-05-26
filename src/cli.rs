@@ -15,7 +15,8 @@ use std::path::PathBuf;
 const RES_DEFAULT: u32 = 51;
 const XRES_DEFAULT: u32 = 51;
 const YRES_DEFAULT: u32 = 51;
-const Z_DISPLACE_DEFAULT: f32 = 0.25;
+const Z_OFFSET_DEFAULT: f32 = 0.25;
+const Z_SCALE_DEFAULT: f32 = 1.0;
 
 #[derive(Parser,Default,Debug)]
 #[clap(author="Author Name", version, about)]
@@ -44,9 +45,13 @@ pub struct Cli {
     /// Y resolution of the display grid
     yres: u32,
 
-    #[arg(short, long, default_value_t=Z_DISPLACE_DEFAULT)]
+    #[arg(short, long, default_value_t=Z_OFFSET_DEFAULT)]
     /// Z displacement between rgb color grids
-    z_displace: f32,
+    offset: f32,
+
+    #[arg(short, long, default_value_t=Z_SCALE_DEFAULT)]
+    /// Z scale factor
+    scale: f32,
 
 }
 
@@ -62,7 +67,7 @@ impl Cli {
         else { "fs_fill" }
     }
 
-    pub fn channel(self: &Self) -> i32 { self.channel.channel() }
+    pub fn channel(self: &Self) -> Channel { self.channel }
     pub fn xres(self: &Self) -> u32 {
         if self.xres != XRES_DEFAULT { self.xres }
         else if self.resolution != RES_DEFAULT { self.resolution }
@@ -79,10 +84,12 @@ impl Cli {
             channel: self.channel,
             xres: self.xres(),
             yres: self.yres(),
-            z_displace: self.z_displace,
+            zoffset: self.offset,
+            zscale: self.scale,
         }
     }
-
+    pub fn zoffset(&self) -> f32 { self.offset }
+    pub fn zscale(&self) -> f32 { self.scale }
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug, Default)]
@@ -97,20 +104,19 @@ pub enum Channel {
 }
 
 impl Channel {
-    pub fn channel(self: &Self) -> i32 { *self as i32 }
-    pub fn red() -> i32 { Channel::Red as i32 }
-    pub fn green() -> i32 { Channel::Green as i32 }
-    pub fn blue() -> i32 { Channel::Blue as i32 }
-    pub fn is_rgb(channel: i32) -> bool { channel == Channel::Rgb as i32 }
-    pub fn color_writes(chan: i32) -> wgpu::ColorWrites {
-        match chan {
-            1 => wgpu::ColorWrites::RED,
-            2 => wgpu::ColorWrites::GREEN,
-            3 => wgpu::ColorWrites::BLUE,
+    pub fn value(self: &Self) -> i32 { *self as i32 }
+    pub fn is_rgb(&self) -> bool { self == &Channel::Rgb }
+    pub fn color_writes(&self) -> wgpu::ColorWrites {
+        match self {
+            Channel::Red => wgpu::ColorWrites::RED,
+            Channel::Green => wgpu::ColorWrites::GREEN,
+            Channel::Blue => wgpu::ColorWrites::BLUE,
             _ => wgpu::ColorWrites::ALL,
         }
     }
-
+    // pub fn red() -> i32 { Channel::Red as i32 }
+    // pub fn green() -> i32 { Channel::Green as i32 }
+    // pub fn blue() -> i32 { Channel::Blue as i32 }
 }
 
 #[derive(Copy,Clone)]
@@ -119,11 +125,12 @@ pub struct Args {
     pub channel: Channel,
     pub xres: u32,
     pub yres: u32,
-    pub z_displace: f32,
+    pub zoffset: f32,
+    pub zscale: f32,
 }
 
 impl Args {
-    pub fn channel(self: &Self) -> i32 { self.channel.channel() }
+    pub fn channel(self: &Self) -> Channel { self.channel }
     pub fn polygon_mode(self: &Self) -> wgpu::PolygonMode {
         if self.wire { wgpu::PolygonMode::Line }
         else { wgpu::PolygonMode::Fill }

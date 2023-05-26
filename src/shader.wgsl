@@ -12,10 +12,11 @@ struct MeshDescriptor {
     rows_of_quads: u32, // number of rows
     xoffset: f32,       // location of first x value
     yoffset: f32,       // location of first y value
+    zoffset: f32,       // location of first z value
     xscale: f32,        // x scale factor
     yscale: f32,        // y scale factor
+    zscale: f32,        // z scale factor
     channel: i32,       // red, green or blue color channel
-    zdisplace: f32,
 };
 
 @group(1) @binding(0)
@@ -82,11 +83,12 @@ fn vs_main(
     let rgba = textureLoad(image_tex, icoords, 0);
     var z: f32;
     switch mesh_desc.channel {
-        case 0 { z = sqrt(dot(rgba.rgb, rgba.rgb)) / 3.0; }
-        case 1 { z = rgba.r + mesh_desc.zdisplace; }
-        case 2 { z = rgba.g + mesh_desc.zdisplace; }
-        case 3 { z = rgba.b + mesh_desc.zdisplace; }
-        default { z = sqrt(dot(rgba.rgb, rgba.rgb)) / 3.0; }
+        // case 0 { z = sqrt(dot(rgba.rgb, rgba.rgb)) / 3.0; }
+        case 1 { z = rgba.r * mesh_desc.zscale + mesh_desc.zoffset; }
+        case 2 { z = rgba.g * mesh_desc.zscale + mesh_desc.zoffset; }
+        case 3 { z = rgba.b * mesh_desc.zscale + mesh_desc.zoffset; }
+        default { z = sqrt(dot(rgba.rgb, rgba.rgb)) 
+            * mesh_desc.zscale + mesh_desc.zoffset; }
     }
     // let z = sqrt(dot(rgba.rgb, rgba.rgb)) / 3.0;
     out.clip_position = camera.view_proj * vec4<f32>(x, y, z, 1.0);

@@ -6,8 +6,8 @@ use image_view::run;
 use image_view::cli::Cli;
 
 fn main() {
-    let args = Cli::new();
-    println!("{:?}", args);
+    let cli = Cli::new();
+    println!("{:?}", cli);
 
-    pollster::block_on(run(&args));
+    pollster::block_on(run(&cli));
 }

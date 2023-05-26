@@ -6,7 +6,7 @@ pub fn make(
     device: &wgpu::Device,
     config: &wgpu::SurfaceConfiguration,
     args: &cli::Args,
-    chan: i32,
+    chan: cli::Channel,
     // image_text: &texture::Texture,
     // mesh_uniform: &uniform_buffer::UniformBinding,
     // camera_uniform: &camera::CameraUniform,
@@ -54,7 +54,7 @@ pub fn make(
                 //         operation: wgpu::BlendOperation::Add,
                 //     }
                 // }),
-                write_mask: cli::Channel::color_writes(chan),
+                write_mask: cli::Channel::color_writes(&chan),
                 // write_mask: wgpu::ColorWrites::ALL,
                 // write_mask: args.color_writes(),
             })],

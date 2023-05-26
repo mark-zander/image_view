@@ -25,24 +25,9 @@ struct State {
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
     size: winit::dpi::PhysicalSize<u32>,
-    // window: &Window,
-    render_pipeline: wgpu::RenderPipeline,
-    render_pipeline_red: wgpu::RenderPipeline,
-    render_pipeline_green: wgpu::RenderPipeline,
-    render_pipeline_blue: wgpu::RenderPipeline,
-
     image_text: texture::Texture, // image texture
-    // mesh_group: mesh::Group,
     mesh: mesh::Descriptor,
     mesh_data: mesh::Data,
-    mesh_data_red: mesh::Data,
-    mesh_data_green: mesh::Data,
-    mesh_data_blue: mesh::Data,
-    // mesh_desc: mesh::Descriptor,
-    // mesh_group: uniform_buffer::Group,
-    // mesh_bind_group: wgpu::BindGroup,
-    // multi_mesh_desc: [mesh::Descriptor; 3],
-    // multi_mesh_uniform: [uniform_buffer::UniformBinding; 3],
     depth: texture::Depth,
     // All this for the camera? Needs it's own struct?
     camera: camera::Camera,
@@ -54,7 +39,7 @@ struct State {
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
     mouse_pressed: bool,
-    channel: i32,
+    // channel: i32,
 }
 
 impl State {
@@ -64,11 +49,6 @@ impl State {
         cli: &cli::Cli,
     ) -> Self {
         let size = window.inner_size();
-
-        // This is the size of the mesh. 6 is the smallest possible mesh.
-        // Should this be rowsize & nrows? Based on subsampling image.
-        // Needs a uniform for rowsize. Compute nindexes.
-        // let num_indices = 6;
 
         // The instance is a handle to our GPU
         // Backends::all => Vulkan + Metal + DX12 + Browser WebGPU
@@ -135,31 +115,10 @@ impl State {
         let image_text = texture::Texture::from_image(
             &device, &queue, &image, "image data").unwrap();
 
-        // let mesh_desc = mesh::Descriptor::default(args.xres(), args.yres(),
-        //     if cli::Channel::is_rgb(args.channel()) { cli::Channel::red() }
-        //     else { args.channel() });
-        // let mesh_uniform = uniform_buffer::Bind::new(
-        //     0, wgpu::ShaderStages::VERTEX_FRAGMENT);
-        // let mesh_group = uniform_buffer::Group::new(
-        //     1, vec![mesh_uniform], &device);
-        // let mesh_bind_group = mesh_group.group(
-        //     &device,
-        //     &[
-        //         mesh_uniform.entry(&device, &mesh_desc.buffer()),
-        //     ]
-        // );
-        // let mesh_group = mesh::Group::new(args, &device);
 
-        let mesh = mesh::Descriptor::default(
-            cli.xres(), cli.yres(), cli.channel(), 0.0);
+        let mesh = mesh::Descriptor::default(cli.xres(), cli.yres(),
+            cli.zoffset(), cli.zscale(), cli.channel());
         let mesh_data = mesh::Data::new(mesh, &device);
-
-        let mesh_red = mesh.another(cli::Channel::red(), 0.0);
-        let mesh_data_red = mesh::Data::new(mesh_red, &device);
-        let mesh_green = mesh.another(cli::Channel::green(), 0.0);
-        let mesh_data_green = mesh::Data::new(mesh_green, &device);
-        let mesh_blue = mesh.another(cli::Channel::blue(), 0.0);
-        let mesh_data_blue = mesh::Data::new(mesh_blue, &device);
 
         let depth = texture::Depth::create(&device, &config, "depth_texture");
 
@@ -208,63 +167,17 @@ impl State {
 
         let args = cli.args();
 
-        let render_pipeline = pipeline::make(&device, &config, &args,
-            mesh_data.channel(),
-            &[
-                &image_text.bind_group_layout,
-                &mesh_data.layout,
-                &camera_bind_group_layout,
-            ]);
-
-        let render_pipeline_red = pipeline::make(&device, &config, &args,
-            mesh_data_red.channel(),
-            &[
-                &image_text.bind_group_layout,
-                &mesh_data_red.layout,
-                &camera_bind_group_layout,
-            ]);
-    
-        let render_pipeline_green = pipeline::make(&device, &config, &args,
-            mesh_data_green.channel(),
-            &[
-                &image_text.bind_group_layout,
-                &mesh_data_green.layout,
-                &camera_bind_group_layout,
-            ]);
-    
-        let render_pipeline_blue = pipeline::make(&device, &config, &args,
-            mesh_data_blue.channel(),
-            &[
-                &image_text.bind_group_layout,
-                &mesh_data_blue.layout,
-                &camera_bind_group_layout,
-            ]);
-    
-    
 
         Self {
-            // window,
             args,
             surface,
             device,
             queue,
             config,
             size,
-            render_pipeline,
-            render_pipeline_red,
-            render_pipeline_green,
-            render_pipeline_blue,
             image_text,
             mesh,
             mesh_data,
-            mesh_data_red,
-            mesh_data_green,
-            mesh_data_blue,
-            // mesh_desc,
-            // mesh_group,
-            // mesh_bind_group,
-            // multi_mesh_desc,
-            // multi_mesh_uniform,
             depth,
             camera,
             projection,
@@ -275,7 +188,7 @@ impl State {
             camera_bind_group,
             camera_uniform,
             mouse_pressed: false,
-            channel: cli.channel(),
+            // channel: cli.channel(),
         }
 
     }
@@ -339,18 +252,43 @@ impl State {
         );
     }
 
+    fn clear(&mut self,
+        encoder: &mut wgpu::CommandEncoder, 
+        view: &wgpu::TextureView,
+        color: wgpu::Color,
+    ) {
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Render Pass"),
+            // There could be more than 1 render target.
+            color_attachments: &[
+                // This is what @location(0) in the fragment shader targets
+                Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        // load: wgpu::LoadOp::Load,
+                        load: wgpu::LoadOp::Clear(color),
+                        store: true,
+                    }
+                })
+            ],
+            depth_stencil_attachment: None,
+        });
+    }
+
     fn render_pass(&mut self,
         encoder: &mut wgpu::CommandEncoder,
         view: &wgpu::TextureView,
-        chn: i32,
-        z_displace: f32,
+        zoffset: f32,
+        zscale: f32,
+        chn: cli::Channel,
     ) {
-        let mesh = self.mesh.another(chn, z_displace);
+        let mesh = self.mesh.another(zoffset, zscale, chn);
         let mesh_data = mesh::Data::new(mesh, &self.device);
 
         let render_pipeline = pipeline::make(&self.device, &self.config,
             &self.args,
-            mesh_data.channel(),
+            chn,
             &[
                 &self.image_text.bind_group_layout,
                 &mesh_data.layout,
@@ -393,31 +331,6 @@ impl State {
             }),
         });
 
-
-        
-        // match chn {
-        //     1 => {
-        //         render_pass.set_pipeline(&self.render_pipeline_red);
-        //         render_pass.set_bind_group(
-        //             1, &self.mesh_data_red.bind, &[]);
-        //     },
-        //     2 => {
-        //         render_pass.set_pipeline(&self.render_pipeline_green);
-        //         render_pass.set_bind_group(
-        //             1, &self.mesh_data_green.bind, &[]);
-        //     },
-        //     3 => {
-        //         render_pass.set_pipeline(&self.render_pipeline_blue);
-        //         render_pass.set_bind_group(
-        //             1, &self.mesh_data_blue.bind, &[]);
-        //     },
-        //     _ => {
-        //         render_pass.set_pipeline(&render_pipeline);
-        //         render_pass.set_bind_group(
-        //             1, &mesh_data.bind, &[]);
-        //     },
-        // }
-
         render_pass.set_pipeline(&render_pipeline);
         render_pass.set_bind_group(
             1, &mesh_data.bind, &[]);
@@ -426,16 +339,10 @@ impl State {
         render_pass.set_bind_group(
             2, &self.camera_bind_group, &[]);
 
-        // render_pass.set_bind_group(
-        //     1, &self.mesh_data.bind, &[]);
-
-
         render_pass.draw(
             0..self.mesh_data.nverts(), 0..1); // 3.
-        // render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
-        // render_pass.draw(0..726, 0..1); // 3.
-    }
 
+    }
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
         let output = self.surface.get_current_texture()?;
@@ -443,19 +350,21 @@ impl State {
             &wgpu::TextureViewDescriptor::default());
         let mut encoder = self.device.create_command_encoder(
             &wgpu::CommandEncoderDescriptor {label: Some("Render Encoder"),});
-        if !cli::Channel::is_rgb(self.channel) {
-            self.render_pass(&mut encoder, &view, self.args.channel(), 0.0);
+        self.clear(&mut encoder, &view, wgpu::Color::BLACK);
+        // self.clear(&mut encoder, &view,
+        //     wgpu::Color {r: 0.1, g: 0.2, b: 0.3, a: 1.0,}
+        // );
+        if !self.args.channel().is_rgb() {
+            self.render_pass(&mut encoder, &view,
+                0.0, self.args.zscale, self.args.channel());
         } else {
-            // self.render_pass(&mut encoder, &view, 1, 0.0);
-            // self.render_pass(&mut encoder, &view, 2, 0.0);
-            // self.render_pass(&mut encoder, &view, 3, 0.0);
-            // let colors = [cli::Channel::Red, cli::Channel::Green, cli::Channel::Blue];
             use cli::Channel::*;
             let colors = [Red, Green, Blue];
-            let mut z_displace = -1.0f32;
+            let mut zoffset = -1.0f32;
             for chan in colors {
-                self.render_pass(&mut encoder, &view, chan.channel(), z_displace);
-                z_displace += self.args.z_displace;
+                self.render_pass(&mut encoder, &view,
+                    zoffset, self.args.zscale, chan);
+                zoffset += self.args.zoffset;
             }
         }
         // submit will accept anything that implements IntoIter
@@ -576,3 +485,115 @@ pub async fn run(args: &cli::Cli) {
                 //     render_pass.draw(0..self.mesh_desc.nverts(), 0..1); // 3.
                 // }
             // }
+        // match chn {
+        //     1 => {
+        //         render_pass.set_pipeline(&self.render_pipeline_red);
+        //         render_pass.set_bind_group(
+        //             1, &self.mesh_data_red.bind, &[]);
+        //     },
+        //     2 => {
+        //         render_pass.set_pipeline(&self.render_pipeline_green);
+        //         render_pass.set_bind_group(
+        //             1, &self.mesh_data_green.bind, &[]);
+        //     },
+        //     3 => {
+        //         render_pass.set_pipeline(&self.render_pipeline_blue);
+        //         render_pass.set_bind_group(
+        //             1, &self.mesh_data_blue.bind, &[]);
+        //     },
+        //     _ => {
+        //         render_pass.set_pipeline(&render_pipeline);
+        //         render_pass.set_bind_group(
+        //             1, &mesh_data.bind, &[]);
+        //     },
+        // }
+        // render_pass.set_bind_group(
+        //     1, &self.mesh_data.bind, &[]);
+        // render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
+        // render_pass.draw(0..726, 0..1); // 3.
+            // self.render_pass(&mut encoder, &view, 1, 0.0);
+            // self.render_pass(&mut encoder, &view, 2, 0.0);
+            // self.render_pass(&mut encoder, &view, 3, 0.0);
+            // let colors = [cli::Channel::Red, cli::Channel::Green, cli::Channel::Blue];
+    // window: &Window,
+    // render_pipeline: wgpu::RenderPipeline,
+    // render_pipeline_red: wgpu::RenderPipeline,
+    // render_pipeline_green: wgpu::RenderPipeline,
+    // render_pipeline_blue: wgpu::RenderPipeline,
+    // mesh_data_red: mesh::Data,
+    // mesh_data_green: mesh::Data,
+    // mesh_data_blue: mesh::Data,
+    // mesh_group: mesh::Group,
+    // mesh_desc: mesh::Descriptor,
+    // mesh_group: uniform_buffer::Group,
+    // mesh_bind_group: wgpu::BindGroup,
+    // multi_mesh_desc: [mesh::Descriptor; 3],
+    // multi_mesh_uniform: [uniform_buffer::UniformBinding; 3],
+            // render_pipeline,
+            // render_pipeline_red,
+            // render_pipeline_green,
+            // render_pipeline_blue,
+            // mesh_data_red,
+            // mesh_data_green,
+            // mesh_data_blue,
+            // mesh_desc,
+            // mesh_group,
+            // mesh_bind_group,
+            // multi_mesh_desc,
+            // multi_mesh_uniform,
+        // let render_pipeline = pipeline::make(&device, &config, &args,
+        //     mesh_data.channel(),
+        //     &[
+        //         &image_text.bind_group_layout,
+        //         &mesh_data.layout,
+        //         &camera_bind_group_layout,
+        //     ]);
+
+        // let render_pipeline_red = pipeline::make(&device, &config, &args,
+        //     mesh_data_red.channel(),
+        //     &[
+        //         &image_text.bind_group_layout,
+        //         &mesh_data_red.layout,
+        //         &camera_bind_group_layout,
+        //     ]);
+    
+        // let render_pipeline_green = pipeline::make(&device, &config, &args,
+        //     mesh_data_green.channel(),
+        //     &[
+        //         &image_text.bind_group_layout,
+        //         &mesh_data_green.layout,
+        //         &camera_bind_group_layout,
+        //     ]);
+    
+        // let render_pipeline_blue = pipeline::make(&device, &config, &args,
+        //     mesh_data_blue.channel(),
+        //     &[
+        //         &image_text.bind_group_layout,
+        //         &mesh_data_blue.layout,
+        //         &camera_bind_group_layout,
+        //     ]);
+        // let mesh_desc = mesh::Descriptor::default(args.xres(), args.yres(),
+        //     if cli::Channel::is_rgb(args.channel()) { cli::Channel::red() }
+        //     else { args.channel() });
+        // let mesh_uniform = uniform_buffer::Bind::new(
+        //     0, wgpu::ShaderStages::VERTEX_FRAGMENT);
+        // let mesh_group = uniform_buffer::Group::new(
+        //     1, vec![mesh_uniform], &device);
+        // let mesh_bind_group = mesh_group.group(
+        //     &device,
+        //     &[
+        //         mesh_uniform.entry(&device, &mesh_desc.buffer()),
+        //     ]
+        // );
+        // let mesh_group = mesh::Group::new(args, &device);
+        // let mesh_red = mesh.another(cli::Channel::red(), 0.0);
+        // let mesh_data_red = mesh::Data::new(mesh_red, &device);
+        // let mesh_green = mesh.another(cli::Channel::green(), 0.0);
+        // let mesh_data_green = mesh::Data::new(mesh_green, &device);
+        // let mesh_blue = mesh.another(cli::Channel::blue(), 0.0);
+        // let mesh_data_blue = mesh::Data::new(mesh_blue, &device);
+
+    
+    
+
+

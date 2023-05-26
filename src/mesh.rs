@@ -8,10 +8,11 @@ pub struct Descriptor {
     rows_of_quads: u32, // number of rows of quads
     xoffset: f32,       // location of first x value
     yoffset: f32,       // location of first y value
+    zoffset: f32,       // location of first z value
     xscale: f32,        // x scale factor
     yscale: f32,        // y scale factor
+    zscale: f32,        // z scale factor
     channel: i32,       // red, green or blue color channel
-    zdisplace: f32,     // z displacement between rgb color grids
 }
 
 impl Descriptor {
@@ -20,20 +21,22 @@ impl Descriptor {
         nrows: u32,     // number of rows
         xoffset: f32,   // location of first x value
         yoffset: f32,   // location of first y value
-        xscale: f32,    // x scale factor
-        yscale: f32,    // y scale factor
-        channel: i32,   // red, green or blue color channel
-        zdisplace: f32,
+        zoffset: f32,       // location of first z value
+        xscale: f32,        // x scale factor
+        yscale: f32,        // y scale factor
+        zscale: f32,        // z scale factor
+        channel: i32,       // red, green or blue color channel
     ) -> Self {
         Self {
             quads_in_row: rowsize - 1,
             rows_of_quads: nrows - 1,
             xoffset,
             yoffset,
+            zoffset,
             xscale,
             yscale,
+            zscale,
             channel,
-            zdisplace,
         }
     }
     // Sets up so that the scale goes from -1 to +1 for both
@@ -41,8 +44,9 @@ impl Descriptor {
     pub fn default(
         rowsize: u32,   // number of vertexes in a row
         nrows: u32,     // number of rows of vertexes
-        channel: i32,
-        zdisplace: f32,
+        zoffset: f32,
+        zscale: f32,
+        chan: cli::Channel,
     ) -> Self {
         let quads_in_row = rowsize - 1;
         let rows_of_quads = nrows - 1;
@@ -53,16 +57,19 @@ impl Descriptor {
             rows_of_quads,
             xoffset: -1.0,
             yoffset: -1.0,
+            zoffset,
             xscale,
             yscale,
-            channel,
-            zdisplace,
+            zscale,
+            channel: chan.value(),
         }
     }
-    pub fn another(&self, channel: i32, zdisplace: f32) -> Descriptor {
+    pub fn another(&self, zoffset: f32, zscale: f32, chan: cli::Channel,
+    ) -> Descriptor {
         Descriptor {
-            channel,
-            zdisplace,
+            zoffset,
+            zscale,
+            channel: chan.value(),
             ..*self
         }
     }
@@ -118,13 +125,13 @@ impl Data {
         }
     }
     pub fn nverts(&self) -> u32 { self.desc.nverts() }
-    pub fn channel(&self) -> i32 { self.desc.channel }
+    // pub fn channel(&self) -> i32 { self.desc.channel }
 }
 
-pub enum Vary {
-    Single(Data),
-    Triple([Data; 3]),
-}
+// pub enum Vary {
+//     Single(Data),
+//     Triple([Data; 3]),
+// }
 
 // pub struct Group {
 //     pub layout: wgpu::BindGroupLayout,
