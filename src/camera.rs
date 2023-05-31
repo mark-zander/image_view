@@ -110,9 +110,22 @@ impl Projection {
     }
 
     pub fn calc_matrix(&self) -> Matrix4<f32> {
-        OPENGL_TO_WGPU_MATRIX * perspective(
-            self.fovy, self.aspect, self.znear, self.zfar)
-    }
+            // OPENGL_TO_WGPU_MATRIX * perspective(
+            //     self.fovy, self.aspect, self.znear, self.zfar)    
+            let fovy = cgmath::PerspectiveFov {
+                aspect: self.aspect,
+                fovy: self.fovy,
+                near: self.znear,
+                far: self.zfar,
+            };
+            let p = fovy.to_perspective();
+            // println!("{:?}", p);
+
+            // OPENGL_TO_WGPU_MATRIX * cgmath::ortho(
+            //     p.left, p.right, p.bottom, p.top, p.near, p.far)
+            OPENGL_TO_WGPU_MATRIX * cgmath::ortho(
+                -1.1, 1.1, -1.1, 1.1, p.near, p.far)
+        }
 }
 
 pub struct ModelView {
